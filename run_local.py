@@ -21,6 +21,9 @@ def main():
             print(">>> [Local Runner] Config not found in current directory.")
             print(">>> [Local Runner] Running 'onboard' to initialize...")
             sys.argv = [sys.argv[0], "onboard"]
+    elif len(sys.argv) == 1:
+        print(">>> [Local Runner] No command specified. Starting interactive chat...")
+        sys.argv.append("agent")
     
     # 3. 导入并运行 nanobot CLI
     try:
