@@ -18,8 +18,7 @@ from nanobot.agent.tools.web import WebSearchTool, WebFetchTool
 from nanobot.agent.tools.message import MessageTool
 from nanobot.agent.tools.spawn import SpawnTool
 from nanobot.agent.tools.cron import CronTool
-from nanobot.agent.tools.dynamic import DynamicToolLoader
-from nanobot.agent.tools.manage import ManageToolsTool
+from nanobot.agent.tools.create_skill import CreateSkillTool
 from nanobot.agent.memory import MemoryStore
 from nanobot.agent.subagent import SubagentManager
 from nanobot.session.manager import Session, SessionManager
@@ -72,7 +71,6 @@ class AgentLoop:
         self.context = ContextBuilder(workspace, soul_path=soul_path)
         self.sessions = session_manager or SessionManager(workspace)
         self.tools = ToolRegistry()
-        self.dynamic_loader = DynamicToolLoader(workspace / "tools")
         self.subagents = SubagentManager(
             provider=provider,
             workspace=workspace,
@@ -85,21 +83,6 @@ class AgentLoop:
             restrict_to_workspace=restrict_to_workspace,
         )
         
-        self._running = False
-        self._register_default_tools()
-        self._load_dynamic_tools()
-    
-    def _load_dynamic_tools(self) -> None:
-        """Load or reload dynamic tools from workspace."""
-        try:
-            new_tools = self.dynamic_loader.load_tools()
-            for tool in new_tools:
-                self.tools.register(tool)
-            if new_tools:
-                logger.info(f"Loaded {len(new_tools)} dynamic tools")
-        except Exception as e:
-            logger.error(f"Failed to load dynamic tools: {e}")
-
     def _register_default_tools(self) -> None:
         """Register the default set of tools."""
         # File tools (restrict to workspace if configured)
@@ -132,11 +115,8 @@ class AgentLoop:
         if self.cron_service:
             self.tools.register(CronTool(self.cron_service))
         
-        # Dynamic Tools Manager
-        self.tools.register(ManageToolsTool(
-            tools_dir=self.workspace / "tools",
-            reload_callback=self._load_dynamic_tools
-        ))
+        # Create Skill Tool
+        self.tools.register(CreateSkillTool(self.workspace))
     
     def _set_tool_context(self, channel: str, chat_id: str) -> None:
         """Update context for all tools that need routing info."""
