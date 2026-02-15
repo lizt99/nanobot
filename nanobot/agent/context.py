@@ -20,8 +20,9 @@ class ContextBuilder:
     
     BOOTSTRAP_FILES = ["AGENTS.md", "SOUL.md", "USER.md", "TOOLS.md", "IDENTITY.md"]
     
-    def __init__(self, workspace: Path):
+    def __init__(self, workspace: Path, soul_path: Path | None = None):
         self.workspace = workspace
+        self.soul_path = soul_path
         self.memory = MemoryStore(workspace)
         self.skills = SkillsLoader(workspace)
     
@@ -114,6 +115,12 @@ To recall past events, grep {workspace_path}/memory/HISTORY.md"""
         parts = []
         
         for filename in self.BOOTSTRAP_FILES:
+            if filename == "SOUL.md" and self.soul_path:
+                if self.soul_path.exists():
+                    content = self.soul_path.read_text(encoding="utf-8")
+                    parts.append(f"## {filename}\n\n{content}")
+                continue
+
             file_path = self.workspace / filename
             if file_path.exists():
                 content = file_path.read_text(encoding="utf-8")

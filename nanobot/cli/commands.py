@@ -424,6 +424,7 @@ def agent(
     session_id: str = typer.Option("cli:direct", "--session", "-s", help="Session ID"),
     markdown: bool = typer.Option(True, "--markdown/--no-markdown", help="Render assistant output as Markdown"),
     logs: bool = typer.Option(False, "--logs/--no-logs", help="Show nanobot runtime logs during chat"),
+    soul: Path = typer.Option(None, "--soul", help="Path to a custom SOUL.md file"),
 ):
     """Interact with the agent directly."""
     from nanobot.config.loader import load_config
@@ -453,6 +454,7 @@ def agent(
         brave_api_key=config.tools.web.search.api_key or None,
         exec_config=config.tools.exec,
         restrict_to_workspace=config.tools.restrict_to_workspace,
+        soul_path=soul,
     )
     
     # Show spinner when logs are off (no output to miss); skip when logs are on
