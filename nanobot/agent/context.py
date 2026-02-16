@@ -35,6 +35,8 @@ class ContextBuilder:
         Returns:
             Complete system prompt.
         """
+        from nanobot.utils.aieos import AIEOSLoader
+        
         parts = []
         
         # Core identity
@@ -51,6 +53,17 @@ class ContextBuilder:
             parts.append(f"# Memory\n\n{memory}")
         
         # Skills - progressive loading
+        
+        # 0. AIEOS Skills (Auto-load)
+        loader = AIEOSLoader(self.workspace)
+        aieos_skills = loader.get_skills()
+        if aieos_skills:
+            # Merge with passed skill_names if needed, or just append content
+            # For now, we load them as "always active" if found
+            aieos_content = self.skills.load_skills_for_context(aieos_skills)
+            if aieos_content:
+                parts.append(f"# Specialized Skills (From AIEOS)\n\n{aieos_content}")
+        
         # 1. Always-loaded skills: include full content
         always_skills = self.skills.get_always_skills()
         if always_skills:
@@ -74,15 +87,47 @@ Skills with available="false" need dependencies installed first - you can try in
         """Get the core identity section."""
         from datetime import datetime
         import time as _time
+        import os
+        from nanobot.utils.aieos import AIEOSLoader
+
+        # Try to load AIEOS Identity first
+        loader = AIEOSLoader(self.workspace)
+        aieos_prompt = loader.get_prompt()
+        
         now = datetime.now().strftime("%Y-%m-%d %H:%M (%A)")
         tz = _time.strftime("%Z") or "UTC"
         workspace_path = str(self.workspace.expanduser().resolve())
         system = platform.system()
         runtime = f"{'macOS' if system == 'Darwin' else system} {platform.machine()}, Python {platform.python_version()}"
         
-        return f"""# nanobot 🐈
+        agent_name = os.environ.get("NANOBOT_NAME", "nanobot")
+        
+        if aieos_prompt:
+            # Inject AIEOS content into the prompt
+            return f"""{aieos_prompt}
 
-You are nanobot, a helpful AI assistant. You have access to tools that allow you to:
+## Runtime
+Time: {now} ({tz})
+System: {runtime}
+
+## Workspace
+Your workspace is at: {workspace_path}
+- Long-term memory: {workspace_path}/memory/MEMORY.md
+- History log: {workspace_path}/memory/HISTORY.md (grep-searchable)
+- Custom skills: {workspace_path}/skills/{{skill-name}}/SKILL.md
+
+IMPORTANT: When responding to direct questions or conversations, reply directly with your text response.
+Only use the 'message' tool when you need to send a message to a specific chat channel (like WhatsApp).
+For normal conversation, just respond with text - do not call the message tool.
+
+Always be helpful, accurate, and concise. When using tools, think step by step: what you know, what you need, and why you chose this tool.
+When remembering something important, write to {workspace_path}/memory/MEMORY.md
+To recall past events, grep {workspace_path}/memory/HISTORY.md"""
+
+        # Fallback to default
+        return f"""# {agent_name} 🐈
+
+You are {agent_name}, a helpful AI assistant. You have access to tools that allow you to:
 - Read, write, and edit files
 - Execute shell commands
 - Search the web and fetch web pages
@@ -110,14 +155,31 @@ When remembering something important, write to {workspace_path}/memory/MEMORY.md
 To recall past events, grep {workspace_path}/memory/HISTORY.md"""
     
     def _load_bootstrap_files(self) -> str:
-        """Load all bootstrap files from workspace."""
+        """Load all bootstrap files from workspace, path env var, or content env var."""
+        import os
         parts = []
         
         for filename in self.BOOTSTRAP_FILES:
-            file_path = self.workspace / filename
-            if file_path.exists():
-                content = file_path.read_text(encoding="utf-8")
+            base_name = filename.replace('.md', '').upper()
+            
+            # 1. Content Env Var: NANOBOT_BOOTSTRAP_SOUL
+            env_key_content = f"NANOBOT_BOOTSTRAP_{base_name}"
+            env_content = os.environ.get(env_key_content)
+            
+            # 2. Path Env Var: NANOBOT_BOOTSTRAP_SOUL_PATH
+            env_key_path = f"NANOBOT_BOOTSTRAP_{base_name}_PATH"
+            env_path = os.environ.get(env_key_path)
+
+            if env_content:
+                parts.append(f"## {filename}\n\n{env_content}")
+            elif env_path and Path(env_path).exists():
+                content = Path(env_path).read_text(encoding="utf-8")
                 parts.append(f"## {filename}\n\n{content}")
+            else:
+                file_path = self.workspace / filename
+                if file_path.exists():
+                    content = file_path.read_text(encoding="utf-8")
+                    parts.append(f"## {filename}\n\n{content}")
         
         return "\n\n".join(parts) if parts else ""
     

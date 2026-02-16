@@ -1,0 +1,44 @@
+services:
+  bob:
+    build: .
+    container_name: nanobot-bob
+    command: gateway --port 18790
+    ports:
+      - "18791:18790"
+    environment:
+      - NANOBOT_NAME=Bob
+      # Inject AIEOS Identity
+      - NANOBOT_AIEOS_PATH=/app/souls/bob.json
+      # Channels (Telegram Disabled)
+      - NANOBOT_CHANNELS__TELEGRAM__ENABLED=false
+      # Model Config (MSPBots Gateway)
+      - NANOBOT_PROVIDERS__CUSTOM__API_KEY=${MSPBOTS_API_KEY}
+      - NANOBOT_PROVIDERS__CUSTOM__API_BASE=https://aigateway.mspbots.ai/v1
+      - NANOBOT_AGENTS__DEFAULTS__MODEL=msp_gemini/gemini-3-pro-preview
+    volumes:
+      - ./souls:/app/souls:ro
+      - ./data/bob/memory:/root/.nanobot/memory
+      - ./data/bob/workspace:/root/.nanobot/workspace
+    restart: unless-stopped
+
+  alice:
+    build: .
+    container_name: nanobot-alice
+    command: gateway --port 18790
+    ports:
+      - "18792:18790"
+    environment:
+      - NANOBOT_NAME=Alice
+      # Inject AIEOS Identity
+      - NANOBOT_AIEOS_PATH=/app/souls/alice.json
+      # Channels (Telegram Disabled)
+      - NANOBOT_CHANNELS__TELEGRAM__ENABLED=false
+      # Model Config (MSPBots Gateway)
+      - NANOBOT_PROVIDERS__CUSTOM__API_KEY=${MSPBOTS_API_KEY}
+      - NANOBOT_PROVIDERS__CUSTOM__API_BASE=https://aigateway.mspbots.ai/v1
+      - NANOBOT_AGENTS__DEFAULTS__MODEL=msp_gemini/gemini-3-pro-preview
+    volumes:
+      - ./souls:/app/souls:ro
+      - ./data/alice/memory:/root/.nanobot/memory
+      - ./data/alice/workspace:/root/.nanobot/workspace
+    restart: unless-stopped

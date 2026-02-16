@@ -86,35 +86,73 @@ class AgentLoop:
     
     def _register_default_tools(self) -> None:
         """Register the default set of tools."""
+        # AIEOS skills take precedence
+        aieos_tools = self._load_aieos_tools()
+        for tool in aieos_tools:
+            self.tools.register(tool)
+            
         # File tools (restrict to workspace if configured)
         allowed_dir = self.workspace if self.restrict_to_workspace else None
-        self.tools.register(ReadFileTool(allowed_dir=allowed_dir))
-        self.tools.register(WriteFileTool(allowed_dir=allowed_dir))
-        self.tools.register(EditFileTool(allowed_dir=allowed_dir))
-        self.tools.register(ListDirTool(allowed_dir=allowed_dir))
+        if not self.tools.get("read_file"):
+            self.tools.register(ReadFileTool(allowed_dir=allowed_dir))
+        if not self.tools.get("write_file"):
+            self.tools.register(WriteFileTool(allowed_dir=allowed_dir))
+        if not self.tools.get("edit_file"):
+            self.tools.register(EditFileTool(allowed_dir=allowed_dir))
+        if not self.tools.get("list_dir"):
+            self.tools.register(ListDirTool(allowed_dir=allowed_dir))
         
         # Shell tool
-        self.tools.register(ExecTool(
-            working_dir=str(self.workspace),
-            timeout=self.exec_config.timeout,
-            restrict_to_workspace=self.restrict_to_workspace,
-        ))
+        if not self.tools.get("exec"):
+            self.tools.register(ExecTool(
+                working_dir=str(self.workspace),
+                timeout=self.exec_config.timeout,
+                restrict_to_workspace=self.restrict_to_workspace,
+            ))
         
         # Web tools
-        self.tools.register(WebSearchTool(api_key=self.brave_api_key))
-        self.tools.register(WebFetchTool())
+        if not self.tools.get("web_search"):
+            self.tools.register(WebSearchTool(api_key=self.brave_api_key))
+        if not self.tools.get("web_fetch"):
+            self.tools.register(WebFetchTool())
         
         # Message tool
-        message_tool = MessageTool(send_callback=self.bus.publish_outbound)
-        self.tools.register(message_tool)
+        if not self.tools.get("message"):
+            message_tool = MessageTool(send_callback=self.bus.publish_outbound)
+            self.tools.register(message_tool)
         
         # Spawn tool (for subagents)
-        spawn_tool = SpawnTool(manager=self.subagents)
-        self.tools.register(spawn_tool)
+        if not self.tools.get("spawn"):
+            spawn_tool = SpawnTool(manager=self.subagents)
+            self.tools.register(spawn_tool)
         
         # Cron tool (for scheduling)
-        if self.cron_service:
+        if self.cron_service and not self.tools.get("cron"):
             self.tools.register(CronTool(self.cron_service))
+
+    def _load_aieos_tools(self) -> list[Any]:
+        """Load tools defined in AIEOS identity and ensure dependencies."""
+        from nanobot.utils.aieos import AIEOSLoader
+        from nanobot.skills.installer import SkillInstaller
+        
+        loader = AIEOSLoader(self.workspace)
+        skills = loader.get_skills()
+        
+        if not skills:
+            return []
+            
+        # 1. Ensure Skills (Auto-install if missing)
+        # This will check hardcoded registries and install .tar.gz skills
+        installer = SkillInstaller(self.workspace)
+        installer.ensure_skills(skills)
+        
+        # 2. Update config overrides from AIEOS (e.g. temperature)
+        overrides = loader.get_config_overrides()
+        if "temperature" in overrides:
+            self.temperature = overrides["temperature"]
+            logger.info(f"AIEOS: Set temperature to {self.temperature}")
+            
+        return []
     
     def _set_tool_context(self, channel: str, chat_id: str) -> None:
         """Update context for all tools that need routing info."""
