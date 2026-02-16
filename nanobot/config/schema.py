@@ -142,8 +142,17 @@ class QQConfig(BaseModel):
     allow_from: list[str] = Field(default_factory=list)  # Allowed user openids (empty = public access)
 
 
+class NostrConfig(BaseModel):
+    """Nostr channel configuration."""
+    enabled: bool = False
+    relay_url: str = "ws://localhost:8080"
+    private_key: str = "" # Hex private key (32 bytes)
+    super_admin_npub: str = "npub1mla74zqczgruewwpmmanak8qxjgjna0mw7hyqgxvqmcglf5g5qzs9ak9g8"
+
+
 class ChannelsConfig(BaseModel):
     """Configuration for chat channels."""
+    nostr: NostrConfig = Field(default_factory=NostrConfig)
     whatsapp: WhatsAppConfig = Field(default_factory=WhatsAppConfig)
     telegram: TelegramConfig = Field(default_factory=TelegramConfig)
     discord: DiscordConfig = Field(default_factory=DiscordConfig)

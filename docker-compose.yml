@@ -1,4 +1,14 @@
 services:
+  # The Communication Hub
+  relay:
+    image: rnostr/rnostr:latest
+    container_name: msp-nostr-relay
+    ports:
+      - "8081:8080" # Host:8081 -> Container:8080
+    volumes:
+      - ./data/relay:/data
+    restart: unless-stopped
+
   bob:
     build: .
     container_name: nanobot-bob
@@ -7,11 +17,13 @@ services:
       - "18791:18790"
     environment:
       - NANOBOT_NAME=Bob
-      # Inject AIEOS Identity
       - NANOBOT_AIEOS_PATH=/app/souls/bob.json
-      # Channels (Telegram Disabled)
+      # Nostr Config
+      - NANOBOT_CHANNELS__NOSTR__ENABLED=true
+      - NANOBOT_CHANNELS__NOSTR__RELAY_URL=ws://msp-nostr-relay:8080
+      # Telegram Disabled
       - NANOBOT_CHANNELS__TELEGRAM__ENABLED=false
-      # Model Config (MSPBots Gateway)
+      # Model Config
       - NANOBOT_PROVIDERS__CUSTOM__API_KEY=${MSPBOTS_API_KEY}
       - NANOBOT_PROVIDERS__CUSTOM__API_BASE=https://aigateway.mspbots.ai/v1
       - NANOBOT_AGENTS__DEFAULTS__MODEL=msp_gemini/gemini-3-pro-preview
@@ -19,6 +31,8 @@ services:
       - ./souls:/app/souls:ro
       - ./data/bob/memory:/root/.nanobot/memory
       - ./data/bob/workspace:/root/.nanobot/workspace
+    depends_on:
+      - relay
     restart: unless-stopped
 
   alice:
@@ -29,11 +43,13 @@ services:
       - "18792:18790"
     environment:
       - NANOBOT_NAME=Alice
-      # Inject AIEOS Identity
       - NANOBOT_AIEOS_PATH=/app/souls/alice.json
-      # Channels (Telegram Disabled)
+      # Nostr Config
+      - NANOBOT_CHANNELS__NOSTR__ENABLED=true
+      - NANOBOT_CHANNELS__NOSTR__RELAY_URL=ws://msp-nostr-relay:8080
+      # Telegram Disabled
       - NANOBOT_CHANNELS__TELEGRAM__ENABLED=false
-      # Model Config (MSPBots Gateway)
+      # Model Config
       - NANOBOT_PROVIDERS__CUSTOM__API_KEY=${MSPBOTS_API_KEY}
       - NANOBOT_PROVIDERS__CUSTOM__API_BASE=https://aigateway.mspbots.ai/v1
       - NANOBOT_AGENTS__DEFAULTS__MODEL=msp_gemini/gemini-3-pro-preview
@@ -41,4 +57,6 @@ services:
       - ./souls:/app/souls:ro
       - ./data/alice/memory:/root/.nanobot/memory
       - ./data/alice/workspace:/root/.nanobot/workspace
+    depends_on:
+      - relay
     restart: unless-stopped
