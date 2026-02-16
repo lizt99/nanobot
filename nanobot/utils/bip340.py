@@ -1,6 +1,6 @@
 """
 Minimal BIP-340 Schnorr Signatures for Nostr.
-Adapted from the reference implementation: https://github.com/bitcoin/bips/blob/master/bip-0340/reference.py
+Reference implementation from BIP-340.
 """
 
 import hashlib
@@ -56,10 +56,18 @@ def lift_x(x):
     return (x, y if y % 2 == 0 else p - y)
 
 def pubkey_gen(seckey):
-    x = int.from_bytes(seckey, byteorder="big")
-    if not (1 <= x <= n - 1):
+    d0 = int.from_bytes(seckey, byteorder="big")
+    if not (1 <= d0 <= n - 1):
         raise ValueError('The secret key must be an integer in the range 1..n-1.')
-    P = point_mul((G_x, G_y), x)
+    P = point_mul((G_x, G_y), d0)
+    if P[1] % 2 != 0:
+        # If Y is odd, we must negate d so that P corresponds to the even Y point
+        # Wait! Reference implementation doesn't do this in pubkey_gen?
+        # Reference implementation: return bytes_from_point(P)
+        # But sign() negates d.
+        # This implies pubkey_gen returns X.
+        # The user of the private key must know to negate it during signing if needed.
+        pass
     return bytes_from_point(P)
 
 def sha256(b):
@@ -121,7 +129,7 @@ def generate_keypair():
             pubkey = pubkey_gen(seckey)
             return seckey.hex(), pubkey.hex()
         except ValueError:
-            continue # Try again if key is out of range
+            continue
 
 def sign_event(event_id_hex: str, privkey_hex: str) -> str:
     msg = bytes.fromhex(event_id_hex)

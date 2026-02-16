@@ -17,7 +17,9 @@ services:
       - "18791:18790"
     environment:
       - NANOBOT_NAME=Bob
-      - NANOBOT_AIEOS_PATH=/app/souls/bob.json
+      # Identity Fetch via Nostr
+      - NANOBOT_SOUL_ID=bob
+      - NANOBOT_MASTER_KEY=correct-horse-battery-staple
       # Nostr Config
       - NANOBOT_CHANNELS__NOSTR__ENABLED=true
       - NANOBOT_CHANNELS__NOSTR__RELAY_URL=ws://msp-nostr-relay:8080
@@ -28,7 +30,7 @@ services:
       - NANOBOT_PROVIDERS__CUSTOM__API_BASE=https://aigateway.mspbots.ai/v1
       - NANOBOT_AGENTS__DEFAULTS__MODEL=msp_gemini/gemini-3-pro-preview
     volumes:
-      - ./souls:/app/souls:ro
+      # Removed souls mount to force remote fetch
       - ./data/bob/memory:/root/.nanobot/memory
       - ./data/bob/workspace:/root/.nanobot/workspace
     depends_on:
@@ -43,7 +45,9 @@ services:
       - "18792:18790"
     environment:
       - NANOBOT_NAME=Alice
-      - NANOBOT_AIEOS_PATH=/app/souls/alice.json
+      # Identity Fetch via Nostr
+      - NANOBOT_SOUL_ID=alice
+      - NANOBOT_MASTER_KEY=correct-horse-battery-staple
       # Nostr Config
       - NANOBOT_CHANNELS__NOSTR__ENABLED=true
       - NANOBOT_CHANNELS__NOSTR__RELAY_URL=ws://msp-nostr-relay:8080
@@ -54,7 +58,7 @@ services:
       - NANOBOT_PROVIDERS__CUSTOM__API_BASE=https://aigateway.mspbots.ai/v1
       - NANOBOT_AGENTS__DEFAULTS__MODEL=msp_gemini/gemini-3-pro-preview
     volumes:
-      - ./souls:/app/souls:ro
+      # Removed souls mount to force remote fetch
       - ./data/alice/memory:/root/.nanobot/memory
       - ./data/alice/workspace:/root/.nanobot/workspace
     depends_on:
