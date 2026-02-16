@@ -323,6 +323,11 @@ def gateway(
     console.print(f"{__logo__} Starting nanobot gateway on port {port}...")
     
     config = load_config()
+    
+    # Boot: Try Incarnation (Digital Immortality)
+    from nanobot.cli.boot import try_incarnation
+    asyncio.run(try_incarnation(config))
+    
     bus = MessageBus()
     provider = _make_provider(config)
     session_manager = SessionManager(config.workspace_path)
@@ -432,6 +437,10 @@ def agent(
     from loguru import logger
     
     config = load_config()
+
+    # Boot: Try Incarnation (Digital Immortality)
+    from nanobot.cli.boot import try_incarnation
+    asyncio.run(try_incarnation(config))
     
     bus = MessageBus()
     provider = _make_provider(config)
