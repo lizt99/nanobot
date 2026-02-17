@@ -15,7 +15,9 @@ def get_data_path() -> Path:
     return ensure_dir(Path.home() / ".nanobot")
 
 
-def get_workspace_path(workspace: str | None = None) -> Path:
+from typing import Optional, Union
+
+def get_workspace_path(workspace: Optional[str] = None) -> Path:
     """
     Get the workspace path.
     
@@ -37,7 +39,7 @@ def get_sessions_path() -> Path:
     return ensure_dir(get_data_path() / "sessions")
 
 
-def get_skills_path(workspace: Path | None = None) -> Path:
+def get_skills_path(workspace: Optional[Path] = None) -> Path:
     """Get the skills directory within the workspace."""
     ws = workspace or get_workspace_path()
     return ensure_dir(ws / "skills")
