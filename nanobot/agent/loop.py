@@ -86,7 +86,17 @@ class AgentLoop:
     
     def _register_default_tools(self) -> None:
         """Register the default set of tools."""
-        # AIEOS skills take precedence
+        # 1. Local Skills (Phase 4)
+        try:
+            from nanobot.agent.tools.loader import LocalSkillLoader
+            local_loader = LocalSkillLoader(self.workspace)
+            for tool in local_loader.load_all():
+                self.tools.register(tool)
+                logger.info(f"Loaded local skill: {tool.name}")
+        except Exception as e:
+            logger.error(f"Failed to load local skills: {e}")
+
+        # 2. AIEOS skills (Legacy/Download only)
         aieos_tools = self._load_aieos_tools()
         for tool in aieos_tools:
             self.tools.register(tool)
