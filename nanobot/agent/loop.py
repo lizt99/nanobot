@@ -2,6 +2,8 @@
 
 import asyncio
 import json
+import time
+import os
 from pathlib import Path
 from typing import Any
 
@@ -83,6 +85,12 @@ class AgentLoop:
         
         self._running = False
         self._register_default_tools()
+        
+        # Lifecycle (Idle Timeout)
+        self.last_activity = time.time()
+        self.idle_timeout = int(os.environ.get("NANOBOT_IDLE_TIMEOUT", 0))
+        if self.idle_timeout > 0:
+            logger.info(f"Lifecycle: Idle timeout set to {self.idle_timeout}s")
     
     def _register_default_tools(self) -> None:
         """Register the default set of tools."""
@@ -257,6 +265,10 @@ class AgentLoop:
                     self.bus.consume_inbound(),
                     timeout=1.0
                 )
+                
+                # Update activity timestamp
+                self.last_activity = time.time()
+                
                 try:
                     response = await self._process_message(msg)
                     if response:
@@ -269,6 +281,13 @@ class AgentLoop:
                         content=f"Sorry, I encountered an error: {str(e)}"
                     ))
             except asyncio.TimeoutError:
+                # Check idle timeout
+                if self.idle_timeout > 0 and (time.time() - self.last_activity > self.idle_timeout):
+                    logger.warning(f"Lifecycle: Idle timeout ({self.idle_timeout}s) reached. Shutting down.")
+                    self.stop()
+                    # Trigger system exit via exception or break
+                    # In a docker container, stopping the loop exits the main process
+                    break
                 continue
     
     def stop(self) -> None:
