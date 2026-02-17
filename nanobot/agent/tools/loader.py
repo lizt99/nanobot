@@ -15,23 +15,40 @@ class LocalSkillLoader:
         except (ImportError, AttributeError):
             self.package_skills = None
 
-    def load_all(self) -> List[Tool]:
+    def load_all(self, whitelist: list[str] = None) -> List[Tool]:
+        """
+        Load skills from package and workspace.
+        
+        Args:
+            whitelist: List of allowed skill names (e.g. ['fleet-db']). 
+                       Kebab-case is automatically normalized to snake_case.
+                       If None, all found skills are loaded (Legacy mode).
+        """
         tools = []
+        
+        # Normalize whitelist if provided
+        normalized_whitelist = None
+        if whitelist is not None:
+            normalized_whitelist = {name.replace("-", "_") for name in whitelist}
         
         # Load from Package (Built-in)
         if self.package_skills and self.package_skills.exists():
-            tools.extend(self._load_from_dir(self.package_skills))
+            tools.extend(self._load_from_dir(self.package_skills, normalized_whitelist))
             
         # Load from Workspace (User)
         if self.workspace_skills.exists():
-            tools.extend(self._load_from_dir(self.workspace_skills))
+            tools.extend(self._load_from_dir(self.workspace_skills, normalized_whitelist))
             
         return tools
 
-    def _load_from_dir(self, directory: Path) -> List[Tool]:
+    def _load_from_dir(self, directory: Path, whitelist: set[str] | None = None) -> List[Tool]:
         tools = []
         for item in directory.iterdir():
             if item.is_dir():
+                # Skip if not in whitelist (and whitelist is active)
+                if whitelist is not None and item.name not in whitelist:
+                    continue
+                    
                 tool = self._load_skill(item)
                 if tool:
                     tools.append(tool)

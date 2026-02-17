@@ -86,20 +86,30 @@ class AgentLoop:
     
     def _register_default_tools(self) -> None:
         """Register the default set of tools."""
-        # 1. Local Skills (Phase 4)
+        
+        # Determine allowed skills from AIEOS Profile
+        from nanobot.utils.aieos import AIEOSLoader
+        aieos_loader = AIEOSLoader(self.workspace)
+        allowed_skills = aieos_loader.get_skills()
+        
+        # 1. Local Skills (Phase 4) - Enforce Whitelist
         try:
             from nanobot.agent.tools.loader import LocalSkillLoader
             local_loader = LocalSkillLoader(self.workspace)
-            for tool in local_loader.load_all():
+            for tool in local_loader.load_all(whitelist=allowed_skills):
                 self.tools.register(tool)
                 logger.info(f"Loaded local skill: {tool.name}")
         except Exception as e:
             logger.error(f"Failed to load local skills: {e}")
 
         # 2. AIEOS skills (Legacy/Download only)
+        # Note: SkillInstaller also ensures they are downloaded, 
+        # but LocalSkillLoader should pick them up if they exist locally.
+        # This step is mainly for auto-installing missing deps.
         aieos_tools = self._load_aieos_tools()
         for tool in aieos_tools:
-            self.tools.register(tool)
+            if not self.tools.get(tool.name):
+                self.tools.register(tool)
             
         # File tools (restrict to workspace if configured)
         allowed_dir = self.workspace if self.restrict_to_workspace else None
