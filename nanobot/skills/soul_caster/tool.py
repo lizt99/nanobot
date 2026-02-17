@@ -3,8 +3,32 @@ import hashlib
 import base64
 from nanobot.utils.bip340 import pubkey_gen
 from nanobot.utils.crypto import encrypt_soul as utils_encrypt_soul
+from nanobot.agent.tools.base import Tool
 
-class SoulCasterTool:
+class SoulCasterTool(Tool):
+    @property
+    def name(self) -> str:
+        return "soul_caster"
+
+    @property
+    def description(self) -> str:
+        return "Generate and encrypt new Soul identities."
+
+    @property
+    def parameters(self) -> dict:
+        return {
+            "type": "object",
+            "properties": {
+                "action": {"type": "string", "enum": ["mint_soul", "encrypt_soul"]},
+                "name": {"type": "string"},
+                "role": {"type": "string"},
+                "password": {"type": "string"},
+                "soul_json": {"type": "string"}, # Changed to string as json input is safer as string
+                "master_key": {"type": "string"}
+            },
+            "required": ["action"]
+        }
+
     def execute(self, action, **kwargs):
         if action == "mint_soul":
             return self.mint_soul(

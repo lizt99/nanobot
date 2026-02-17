@@ -1,11 +1,37 @@
 from typing import Dict, Any, List, Optional
 import docker
 import os
+from nanobot.agent.tools.base import Tool
 
-class DockerOpsTool:
+class DockerOpsTool(Tool):
     """
     Tool for managing Docker containers.
     """
+    @property
+    def name(self) -> str:
+        return "docker_ops"
+
+    @property
+    def description(self) -> str:
+        return "Manage Docker containers (spawn, kill, logs)."
+
+    @property
+    def parameters(self) -> dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": ["list_containers", "inspect_container", "spawn_container", "stop_container", "get_logs"]
+                },
+                "name": {"type": "string"},
+                "image": {"type": "string"},
+                "env_vars": {"type": "object"},
+                "tail": {"type": "integer"},
+                "all": {"type": "boolean"}
+            },
+            "required": ["action"]
+        }
     
     def __init__(self):
         self.client = docker.from_env()

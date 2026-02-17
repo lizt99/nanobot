@@ -9,16 +9,16 @@ services:
       - ./data/relay:/data
     restart: unless-stopped
 
-  bob:
+  sol:
     build: .
-    container_name: nanobot-bob
+    container_name: nanobot-sol
     command: gateway --port 18790
     ports:
       - "18791:18790"
     environment:
-      - NANOBOT_NAME=Bob
+      - NANOBOT_NAME=Sol
       # Identity Fetch via Nostr
-      - NANOBOT_SOUL_ID=bob
+      - NANOBOT_SOUL_ID=sol
       - NANOBOT_MASTER_KEY=correct-horse-battery-staple
       # Nostr Config
       - NANOBOT_CHANNELS__NOSTR__ENABLED=true
@@ -31,8 +31,11 @@ services:
       - NANOBOT_AGENTS__DEFAULTS__MODEL=msp_gemini/gemini-3-pro-preview
     volumes:
       # Removed souls mount to force remote fetch
-      - ./data/bob/memory:/root/.nanobot/memory
-      - ./data/bob/workspace:/root/.nanobot/workspace
+      - ./data/sol/memory:/root/.nanobot/memory
+      - ./data/sol/workspace:/root/.nanobot/workspace
+      # Mother Powers
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./data/mother:/app/data/mother
     depends_on:
       - relay
     restart: unless-stopped
