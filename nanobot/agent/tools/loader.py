@@ -7,14 +7,30 @@ from nanobot.agent.tools.base import Tool
 
 class LocalSkillLoader:
     def __init__(self, workspace: Path):
-        self.skills_dir = workspace / "skills"
+        self.workspace_skills = workspace / "skills"
+        # Determine package skills dir
+        try:
+            import nanobot.skills
+            self.package_skills = Path(nanobot.skills.__file__).parent
+        except (ImportError, AttributeError):
+            self.package_skills = None
 
     def load_all(self) -> List[Tool]:
         tools = []
-        if not self.skills_dir.exists():
-            return []
+        
+        # Load from Package (Built-in)
+        if self.package_skills and self.package_skills.exists():
+            tools.extend(self._load_from_dir(self.package_skills))
             
-        for item in self.skills_dir.iterdir():
+        # Load from Workspace (User)
+        if self.workspace_skills.exists():
+            tools.extend(self._load_from_dir(self.workspace_skills))
+            
+        return tools
+
+    def _load_from_dir(self, directory: Path) -> List[Tool]:
+        tools = []
+        for item in directory.iterdir():
             if item.is_dir():
                 tool = self._load_skill(item)
                 if tool:

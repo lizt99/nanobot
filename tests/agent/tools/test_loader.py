@@ -95,3 +95,57 @@ class DummyTool(Tool):
     tools = loader.load_all()
     assert len(tools) == 1
     assert tools[0].name == "dummy"
+
+def test_load_from_package_dir(tmp_path):
+    # Setup
+    try:
+        loader_module = load_loader_module()
+    except ImportError:
+        pytest.fail("ImportError: loader.py not found or failed to load")
+        
+    LocalSkillLoader = loader_module.LocalSkillLoader
+    
+    # Create a fake package directory
+    pkg_dir = tmp_path / "site-packages" / "nanobot" / "skills"
+    pkg_dir.mkdir(parents=True)
+    
+    # Create a fake built-in skill
+    skill_dir = pkg_dir / "builtin_skill"
+    skill_dir.mkdir()
+    (skill_dir / "tool.py").write_text("""
+from nanobot.agent.tools.base import Tool
+
+class BuiltinTool(Tool):
+    @property
+    def name(self): return "builtin"
+    @property
+    def description(self): return "desc"
+    @property
+    def parameters(self): return {}
+    async def execute(self, **kwargs): return "ok"
+""")
+    (skill_dir / "SKILL.md").write_text("# Builtin Skill")
+
+    # Mock nanobot.skills module
+    mock_skills = types.ModuleType("nanobot.skills")
+    mock_skills.__file__ = str(pkg_dir / "__init__.py")
+    sys.modules["nanobot.skills"] = mock_skills
+    
+    # Attach to parent package to fix import
+    if "nanobot" in sys.modules:
+        sys.modules["nanobot"].skills = mock_skills
+    
+    # Initialize loader with an empty workspace
+    empty_workspace = tmp_path / "workspace"
+    empty_workspace.mkdir()
+    loader = LocalSkillLoader(empty_workspace)
+    
+    # This should find the built-in skill
+    try:
+        tools = loader.load_all()
+        tool_names = [t.name for t in tools]
+        assert "builtin" in tool_names
+    finally:
+        # Cleanup mock
+        if "nanobot.skills" in sys.modules:
+            del sys.modules["nanobot.skills"]

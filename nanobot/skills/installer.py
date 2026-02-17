@@ -38,7 +38,20 @@ class SkillInstaller:
         """Check if skill exists in workspace."""
         # Simple check: does the directory exist and contain SKILL.md?
         skill_path = self.skills_dir / name
-        return skill_path.exists() and (skill_path / "SKILL.md").exists()
+        if skill_path.exists() and (skill_path / "SKILL.md").exists():
+            return True
+        
+        # Check package (Built-in skills)
+        try:
+            import nanobot.skills
+            pkg_path = Path(nanobot.skills.__file__).parent
+            builtin_path = pkg_path / name
+            if builtin_path.exists() and (builtin_path / "SKILL.md").exists():
+                return True
+        except (ImportError, AttributeError):
+            pass
+            
+        return False
 
     def _install_skill(self, name: str) -> bool:
         """Iterate registries to find and install the skill."""
