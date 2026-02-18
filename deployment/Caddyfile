@@ -1,0 +1,7 @@
+sol.leadsagent.app {
+    reverse_proxy nostr-relay:8080
+}
+
+http://34.173.238.134 {
+    reverse_proxy nostr-relay:8080
+}

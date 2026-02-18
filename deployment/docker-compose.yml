@@ -1,0 +1,59 @@
+version: "3.8"
+
+services:
+  # Edge Layer (SSL/TLS Termination)
+  caddy:
+    image: caddy:2
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - hive-net
+
+  # Communication Bus (Internal Only)
+  nostr-relay:
+    image: scsibug/nostr-rs-relay:latest
+    restart: always
+    user: root
+    volumes:
+      - ./relay_data:/usr/src/app/db
+      - ./config.toml:/usr/src/app/config.toml
+    networks:
+      - hive-net
+
+  # Commander (Sol)
+  sol:
+    build: 
+      context: ..
+      dockerfile: Dockerfile
+    restart: always
+    # Wait for relay to be ready
+    depends_on:
+      - nostr-relay
+    env_file:
+      - ../.env
+    environment:
+      # Internal network connection
+      - NANOBOT_CHANNELS__NOSTR__RELAY_URL=ws://nostr-relay:8080
+      - NANOBOT_CHANNELS__NOSTR__ENABLED=true
+      # Ensure Sol uses the correct private key
+      - NANOBOT_CHANNELS__NOSTR__PRIVATE_KEY=f85870b99d00e9435684dc483f63c0986c53ffffc40ce338127d66a6f992845f
+    volumes:
+      - ../workspace:/root/.nanobot/workspace
+      - ./config.json:/root/.nanobot/config.json
+    command: gateway
+    networks:
+      - hive-net
+
+networks:
+  hive-net:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:

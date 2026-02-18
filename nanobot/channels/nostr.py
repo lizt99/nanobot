@@ -1,4 +1,4 @@
-"""Nostr channel implementation using websockets and BIP-340."""
+"""Nostr channel implementation using websockets and BIP-340 with NIP-04 DM Support."""
 
 from __future__ import annotations
 
@@ -7,6 +7,8 @@ import json
 import time
 import uuid
 import hashlib
+import base64
+import os
 from typing import Any
 
 import websockets
@@ -18,13 +20,66 @@ from nanobot.channels.base import BaseChannel
 from nanobot.config.schema import Config
 from nanobot.utils.bip340 import generate_keypair, sign_event, pubkey_gen
 
+# --- NIP-04 Crypto Helpers ---
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import padding
+from cryptography.hazmat.primitives.asymmetric import ec
+
+def get_shared_secret(priv_key_hex: str, pub_key_hex: str) -> bytes:
+    try:
+        import coincurve
+        sk = coincurve.PrivateKey(bytes.fromhex(priv_key_hex))
+        pk_bytes = bytes.fromhex("02" + pub_key_hex)
+        pk = coincurve.PublicKey(pk_bytes)
+        return sk.ecdh(pk.format())
+    except ImportError:
+        # Fallback to cryptography
+        priv_int = int(priv_key_hex, 16)
+        private_key = ec.derive_private_key(priv_int, ec.SECP256K1(), default_backend())
+        p = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F
+        x = int(pub_key_hex, 16)
+        y_sq = (pow(x, 3, p) + 7) % p
+        y = pow(y_sq, (p + 1) // 4, p)
+        if y % 2 != 0:
+            y = p - y
+        public_numbers = ec.EllipticCurvePublicNumbers(x, y, ec.SECP256K1())
+        public_key = public_numbers.public_key(default_backend())
+        return private_key.exchange(ec.ECDH(), public_key)
+
+def encrypt_nip04(message: str, shared_secret: bytes) -> str:
+    iv = os.urandom(16)
+    cipher = Cipher(algorithms.AES(shared_secret), modes.CBC(iv), backend=default_backend())
+    encryptor = cipher.encryptor()
+    padder = padding.PKCS7(128).padder()
+    padded_data = padder.update(message.encode('utf-8')) + padder.finalize()
+    ciphertext = encryptor.update(padded_data) + encryptor.finalize()
+    return base64.b64encode(ciphertext).decode('utf-8') + "?iv=" + base64.b64encode(iv).decode('utf-8')
+
+def decrypt_nip04(payload: str, shared_secret: bytes) -> str:
+    try:
+        parts = payload.split("?iv=")
+        if len(parts) != 2:
+            return payload # Not encrypted or invalid
+        
+        ciphertext = base64.b64decode(parts[0])
+        iv = base64.b64decode(parts[1])
+        
+        cipher = Cipher(algorithms.AES(shared_secret), modes.CBC(iv), backend=default_backend())
+        decryptor = cipher.decryptor()
+        padded_data = decryptor.update(ciphertext) + decryptor.finalize()
+        
+        unpadder = padding.PKCS7(128).unpadder()
+        data = unpadder.update(padded_data) + unpadder.finalize()
+        return data.decode('utf-8')
+    except Exception as e:
+        logger.error(f"Nostr Decryption Error: {e}")
+        return f"[Decryption Failed: {e}]"
+
 class NostrChannel(BaseChannel):
     """
     Nostr channel for bot-to-bot communication.
-    
-    Supports:
-    - NIP-01: Basic protocol (EVENT, REQ, CLOSE)
-    - Kind 1: Short text note (Chat)
+    Supports NIP-01 and NIP-04 (DMs).
     """
     
     name = "nostr"
@@ -33,26 +88,15 @@ class NostrChannel(BaseChannel):
         super().__init__(config, bus)
         self.config = config
         self.identity_loader = identity_loader
-        
-        # Priority: Config > Env > AIEOS > Generate New
         self.private_key = config.private_key or self._load_key_from_aieos()
-        
-        # Hardcoded SuperAdmin
-        self.SUPER_ADMIN_NPUB = "npub1mla74zqczgruewwpmmanak8qxjgjna0mw7hyqgxvqmcglf5g5qzs9ak9g8"
-        self.relay_url = config.relay_url or "ws://msp-nostr-relay:8080" # Default internal docker DNS
-        
+        self.relay_url = config.relay_url or "ws://msp-nostr-relay:8080"
         self._ws: websockets.WebSocketClientProtocol | None = None
         self._subscription_id = f"nanobot-{uuid.uuid4().hex[:8]}"
 
     def _load_key_from_aieos(self) -> str | None:
-        """Try to load private key from AIEOS identity."""
         try:
             from nanobot.utils.aieos import AIEOSLoader
             from pathlib import Path
-            # Assuming workspace is at /root/.nanobot/workspace in container, or we find a way to access it.
-            # But wait, channels don't have easy access to workspace path unless passed.
-            # Workaround: Assume standard container path /app/workspace or /root/.nanobot/workspace
-            # Better: Config should pass workspace. For now, rely on AIEOSLoader env var lookup.
             loader = AIEOSLoader(Path("/root/.nanobot/workspace")) 
             data = loader.load_identity()
             if data and "identity" in data:
@@ -62,18 +106,15 @@ class NostrChannel(BaseChannel):
         return None
     
     async def start(self) -> None:
-        """Start the Nostr client."""
         if not self.config.enabled:
             return
             
-        # 1. Setup Identity
         if not self.private_key:
             logger.info("Nostr: No private key found, generating ephemeral identity.")
             sk, pk = generate_keypair()
             self.private_key = sk
             self.public_key = pk
         else:
-            # Derive pubkey from private key
             try:
                 pk_bytes = pubkey_gen(bytes.fromhex(self.private_key))
                 self.public_key = pk_bytes.hex()
@@ -84,7 +125,6 @@ class NostrChannel(BaseChannel):
         logger.info(f"Nostr Identity: {self.public_key}")
         self._running = True
         
-        # 2. Connect Loop
         while self._running:
             try:
                 logger.info(f"Nostr: Connecting to {self.relay_url}...")
@@ -92,89 +132,84 @@ class NostrChannel(BaseChannel):
                     self._ws = ws
                     logger.info("Nostr: Connected.")
                     
-                    # 3. Subscribe to Kind 1 (Text Note)
-                    # Filter: kinds=[1], since [now]
+                    # Subscribe to Kind 1 (Chat) and Kind 4 (DM)
+                    # Look back 1 hour to catch missed messages
+                    since_ts = int(time.time()) - 3600 
                     req = [
                         "REQ", 
                         self._subscription_id, 
-                        {"kinds": [1], "limit": 0} # limit 0 = only new messages? No, since=now is better
+                        {"kinds": [1, 4], "limit": 50, "since": since_ts}
                     ]
-                    # Add 'since' to avoid fetching history for now
-                    req[2]["since"] = int(time.time())
-                    
                     await ws.send(json.dumps(req))
                     
-                    # 4. Broadcast Hello
                     await self._send_hello()
-                    
-                    # 5. Listen Loop
                     await self._listen_loop(ws)
                     
             except Exception as e:
                 logger.error(f"Nostr error: {e}")
                 self._ws = None
-                await asyncio.sleep(5) # Retry delay
+                await asyncio.sleep(5)
 
     async def _listen_loop(self, ws):
         async for message in ws:
             try:
                 data = json.loads(message)
                 msg_type = data[0]
-                
                 if msg_type == "EVENT":
-                    sub_id = data[1]
-                    event = data[2]
-                    await self._handle_event(event)
-                elif msg_type == "OK":
-                    pass # Acknowledgement
-                elif msg_type == "EOSE":
-                    pass # End of stored events
-                    
+                    await self._handle_event(data[2])
             except json.JSONDecodeError:
                 pass
 
     async def _handle_event(self, event: dict) -> None:
-        """Handle incoming Nostr event."""
-        # Ignore own events
         if event["pubkey"] == self.public_key:
             return
             
         content = event["content"]
         sender_pubkey = event["pubkey"]
+        kind = event["kind"]
         
-        # Determine if this is a command from SuperAdmin
-        # (Naive check: is sender SuperAdmin?)
-        # Note: npub needs decoding to hex to match event['pubkey']. 
-        # For now, I'll just log receiving.
+        # Handle NIP-04 DM
+        if kind == 4:
+            try:
+                shared_secret = get_shared_secret(self.private_key, sender_pubkey)
+                content = decrypt_nip04(content, shared_secret)
+                logger.info(f"Nostr DM from {sender_pubkey[:8]}: {content}")
+            except Exception as e:
+                logger.error(f"Failed to decrypt DM: {e}")
+                content = "[Encrypted Message]"
+        else:
+            logger.info(f"Nostr Note from {sender_pubkey[:8]}: {content}")
         
-        logger.info(f"Nostr received from {sender_pubkey[:8]}...: {content}")
-        
-        # Route to Bus
-        # We treat Nostr as a channel named 'nostr'
-        # Chat ID is the sender's pubkey
         msg = InboundMessage(
             channel="nostr",
             sender_id=sender_pubkey,
             chat_id=sender_pubkey, 
             content=content,
-            metadata={"event_id": event["id"]}
+            metadata={"event_id": event["id"], "kind": kind}
         )
         await self.bus.publish_inbound(msg)
 
     async def send(self, msg: OutboundMessage) -> None:
-        """Send a message (Kind 1) to Nostr."""
         if not self._ws:
-            logger.warning("Nostr: Not connected, cannot send.")
             return
             
-        # Construct Event
         created_at = int(time.time())
-        kind = 1
-        tags = [] # TODO: Add 'p' tag if replying to DM? For now, public broadcast.
         content = msg.content
+        tags = []
+        kind = 1
         
-        # Serialize for ID (NIP-01)
-        # [0, pubkey, created_at, kind, tags, content]
+        # Determine if DM (Kind 4)
+        # If chat_id is a 64-char hex string, treat as pubkey for DM
+        if len(msg.chat_id) == 64:
+            try:
+                int(msg.chat_id, 16) # Verify hex
+                kind = 4
+                tags = [["p", msg.chat_id]]
+                shared_secret = get_shared_secret(self.private_key, msg.chat_id)
+                content = encrypt_nip04(content, shared_secret)
+            except ValueError:
+                pass # Not a valid pubkey, fallback to Kind 1
+        
         raw_data = json.dumps(
             [0, self.public_key, created_at, kind, tags, content],
             separators=(',', ':'),
@@ -194,21 +229,10 @@ class NostrChannel(BaseChannel):
             "sig": sig
         }
         
-        envelope = ["EVENT", event]
-        await self._ws.send(json.dumps(envelope))
+        await self._ws.send(json.dumps(["EVENT", event]))
 
     async def _send_hello(self) -> None:
-        """Broadcast online status."""
-        # Get bot name from identity if possible
-        name = "Nanobot" 
-        # (Could fetch from env or AIEOS loader)
-        
-        hello_msg = OutboundMessage(
-            channel="nostr",
-            chat_id="broadcast",
-            content=f"Hello world. {name} is online."
-        )
-        await self.send(hello_msg)
+        pass # Silence hello to reduce noise
 
     async def stop(self) -> None:
         self._running = False

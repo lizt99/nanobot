@@ -1,0 +1,30 @@
+[info]
+relay_url = "wss://sol.leadsagent.app"
+name = "Sol's Hive Relay"
+description = "Private command bus for Nanobot Fleet."
+pubkey = "c40542a1c9623ceb3d531551162ea4c395bf91ae1519c1b11078776e6c37e071"
+contact = "mailto:admin@leadsagent.app"
+
+[database]
+engine = "sqlite"
+data_directory = "./db"
+
+[network]
+address = "0.0.0.0"
+port = 8080
+
+[options]
+reject_future_seconds = 1800 # 30 mins
+
+[limits]
+messages_per_sec = 100
+max_event_size = 131072 # 128 KB
+
+[authorization]
+pubkey_whitelist = [
+  "c40542a1c9623ceb3d531551162ea4c395bf91ae1519c1b11078776e6c37e071", # Sol
+  "dffbea88181207ccb9c1defb3ed8e0349129f5fb77ae4020cc06f08fa688a005"  # Boss (zerotoone)
+]
+# Note: Whitelist enforces that ONLY these keys can write.
+# If other agents join later, they must be added here or switch to 'open' auth.
+# For now, locking it down is safest.
