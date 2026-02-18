@@ -46,6 +46,7 @@ services:
     volumes:
       - ../workspace:/root/.nanobot/workspace
       - ./config.json:/root/.nanobot/config.json
+      - /var/run/docker.sock:/var/run/docker.sock
     command: gateway
     networks:
       - hive-net
