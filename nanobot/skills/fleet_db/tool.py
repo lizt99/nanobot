@@ -14,7 +14,8 @@ class FleetDBTool(Tool):
     """
 
     def __init__(self):
-        self.db_path = os.environ.get("FLEET_DB_PATH", "data/mother/fleet.db")
+        # Default to workspace/fleet.db if not set
+        self.db_path = os.environ.get("FLEET_DB_PATH", "/root/.nanobot/workspace/fleet/fleet.db")
         self._init_db()
 
     def _get_connection(self):

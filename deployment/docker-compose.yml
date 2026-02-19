@@ -47,7 +47,7 @@ services:
       - ../workspace:/root/.nanobot/workspace
       - ./config.json:/root/.nanobot/config.json
       - /var/run/docker.sock:/var/run/docker.sock
-    command: gateway
+    command: nanobot gateway
     networks:
       - hive-net
 

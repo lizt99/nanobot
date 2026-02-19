@@ -13,7 +13,7 @@ class DockerOpsTool(Tool):
 
     @property
     def description(self) -> str:
-        return "Manage Docker containers (spawn, kill, logs)."
+        return "Manage Docker containers (spawn, kill, remove, logs)."
 
     @property
     def parameters(self) -> dict[str, Any]:
@@ -22,13 +22,14 @@ class DockerOpsTool(Tool):
             "properties": {
                 "action": {
                     "type": "string",
-                    "enum": ["list_containers", "inspect_container", "spawn_container", "stop_container", "get_logs"]
+                    "enum": ["list_containers", "inspect_container", "spawn_container", "stop_container", "remove_container", "get_logs"]
                 },
                 "name": {"type": "string"},
                 "image": {"type": "string"},
                 "env_vars": {"type": "object"},
                 "tail": {"type": "integer"},
-                "all": {"type": "boolean"}
+                "all": {"type": "boolean"},
+                "force": {"type": "boolean"}
             },
             "required": ["action"]
         }
@@ -37,16 +38,9 @@ class DockerOpsTool(Tool):
         self.client = docker.from_env()
         self.LABEL_KEY = "com.mspbots.nanobot"
         self.LABEL_VALUE = "true"
-        self.ALLOWED_IMAGES_PREFIXES = ["nanobot-", "ghcr.io/astral-sh/uv"]
+        self.ALLOWED_IMAGES_PREFIXES = ["nanobot-", "ghcr.io/astral-sh/uv", "deployment-"]
 
     def execute(self, action: str, **kwargs) -> Any:
-        """
-        Execute a Docker operation.
-        
-        Args:
-            action: The action to perform (list_containers, inspect_container, spawn_container, stop_container, get_logs)
-            **kwargs: Arguments for the specific action
-        """
         method_name = f"_{action}"
         if hasattr(self, method_name):
             return getattr(self, method_name)(**kwargs)
@@ -76,11 +70,6 @@ class DockerOpsTool(Tool):
     def _spawn_container(self, name: str, image: str, env_vars: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
         """
         Spawn a new container.
-        
-        Args:
-            name: Container name
-            image: Image to use (must start with allowed prefixes)
-            env_vars: Environment variables
         """
         # Security check: Image allowance
         if not any(image.startswith(prefix) for prefix in self.ALLOWED_IMAGES_PREFIXES):
@@ -95,8 +84,12 @@ class DockerOpsTool(Tool):
                 name=name,
                 environment=env_vars or {},
                 labels=labels,
-                detach=True
+                detach=True,
+                network_mode="bridge" # Use default bridge or specify network if needed
             )
+            # Try to connect to network if running in compose
+            # (Simplification: relying on default network behavior for now)
+            
             return {
                 "id": container.short_id,
                 "name": container.name,
@@ -106,21 +99,28 @@ class DockerOpsTool(Tool):
             raise RuntimeError(f"Failed to spawn container: {str(e)}")
 
     def _stop_container(self, name: str) -> Dict[str, str]:
-        """
-        Stop a container.
-        """
-        # Security check: Self-preservation
-        if name == "nanobot-sol":
-            raise ValueError("Cannot stop 'nanobot-sol' (Self-preservation).")
+        """Stop a container."""
+        if name == "nanobot-sol" or name == "deployment-sol-1":
+            raise ValueError("Cannot stop 'Sol' (Self-preservation).")
             
         container = self._get_container(name)
         container.stop()
         return {"status": "stopped", "name": name}
 
+    def _remove_container(self, name: str, force: bool = False) -> Dict[str, str]:
+        """Remove a container."""
+        if name == "nanobot-sol" or name == "deployment-sol-1":
+            raise ValueError("Cannot remove 'Sol' (Self-preservation).")
+            
+        # Get container (even if stopped, it might not have label readable if inspected via name? No, get(name) works)
+        # However, _get_container checks labels.
+        container = self._get_container(name)
+        container.remove(force=force)
+        return {"status": "removed", "name": name}
+
     def _get_logs(self, name: str, tail: int = 100) -> str:
         """Get logs from a container."""
         container = self._get_container(name)
-        # logs returns bytes, decode to string
         return container.logs(tail=tail).decode('utf-8')
 
     def _get_container(self, name: str):
@@ -132,7 +132,17 @@ class DockerOpsTool(Tool):
             
         # Security check: Verify label
         labels = container.labels or {}
+        # Relax label check slightly to allow adopting containers if needed, 
+        # OR ensure Sol always adds labels.
         if labels.get(self.LABEL_KEY) != self.LABEL_VALUE:
-            raise PermissionError(f"Access denied: Container '{name}' is not managed by Nanobot.")
+             # Fallback: if name starts with nanobot-, allow it?
+             # No, strictly managed.
+             pass
+             # For 'alice' created by Sol previously, it should have the label.
+             # If 'alice' was created manually without label, Sol can't touch it.
+             # We will assume Sol created it.
+             
+        if labels.get(self.LABEL_KEY) != self.LABEL_VALUE:
+             raise PermissionError(f"Access denied: Container '{name}' is not managed by Nanobot (missing label).")
             
         return container
