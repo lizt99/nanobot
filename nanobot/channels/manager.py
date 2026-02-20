@@ -48,16 +48,17 @@ class ChannelManager:
                 logger.warning(f"Telegram channel not available: {e}")
         
         # Nostr channel
-        if self.config.channels.nostr.enabled:
-            try:
-                from nanobot.channels.nostr import NostrChannel
-                self.channels["nostr"] = NostrChannel(
-                    self.config.channels.nostr, 
-                    self.bus
-                )
-                logger.info("Nostr channel enabled")
-            except ImportError as e:
-                logger.warning(f"Nostr channel not available: {e}")
+        # HARD DISABLED BY LUNA TO PREVENT SPAM LOOPS
+        # if self.config.channels.nostr.enabled:
+        #     try:
+        #         from nanobot.channels.nostr import NostrChannel
+        #         self.channels["nostr"] = NostrChannel(
+        #             self.config.channels.nostr, 
+        #             self.bus
+        #         )
+        #         logger.info("Nostr channel enabled")
+        #     except ImportError as e:
+        #         logger.warning(f"Nostr channel not available: {e}")
 
         # WhatsApp channel
         if self.config.channels.whatsapp.enabled:
