@@ -72,6 +72,14 @@ class LiteLLMProvider(LLMProvider):
     
     def _resolve_model(self, model: str) -> str:
         """Resolve model name by applying provider/gateway prefixes."""
+        # Strip custom/unknown prefixes (e.g. msp_gemini/) that might confuse LiteLLM
+        # This handles cases where AIEOS has 'msp_gemini/gemini-pro' but gateway needs 'openai/gemini-pro'
+        if "/" in model and not self._gateway: # Only strip if not managed by gateway logic yet
+             parts = model.split("/")
+             # List of prefixes that are NOT valid LiteLLM providers but used in OpenClaw
+             if parts[0] in ["msp_gemini", "msp_azure", "openclaw"]:
+                 model = parts[-1]
+
         if self._gateway:
             # Gateway mode: apply gateway prefix, skip provider-specific prefixes
             prefix = self._gateway.litellm_prefix

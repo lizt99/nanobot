@@ -102,6 +102,14 @@ class TelegramChannel(BaseChannel):
     ):
         super().__init__(config, bus)
         self.config: TelegramConfig = config
+        
+        # Validate token format to prevent crash loops on polling start
+        if self.config.token and not re.match(r'^\d+:[A-Za-z0-9_-]+$', self.config.token):
+            raise ValueError(
+                f"Invalid Telegram bot token format: '{self.config.token}'. "
+                "Expected format: <numeric_id>:<alphanumeric_string>"
+            )
+            
         self.groq_api_key = groq_api_key
         self._app: Application | None = None
         self._chat_ids: dict[str, int] = {}  # Map sender_id to chat_id for replies
