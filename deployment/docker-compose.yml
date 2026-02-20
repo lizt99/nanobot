@@ -49,38 +49,6 @@ services:
     networks:
       - hive-net
 
-  # ---------------------------
-  # 3. Agent Layer
-  # ---------------------------
-  
-  # Sol (The Manager Agent)
-  # SECURE: No Docker Socket access
-  sol:
-    build: 
-      context: ..
-      dockerfile: Dockerfile
-    restart: always
-    depends_on:
-      - nostr-relay
-      - agent-api
-    env_file:
-      - ../.env
-    environment:
-      # Connection to API
-      - NANOBOT_AGENT_API_URL=http://agent-api:8000
-      - NANOBOT_AGENT_API_KEY=${AGENT_API_KEY:-sk-hive-prod-37b3f580730685be6e7c667e4c027c6e}
-      # Connection to Bus
-      - NANOBOT_CHANNELS__NOSTR__RELAY_URL=ws://nostr-relay:8080
-      - NANOBOT_CHANNELS__NOSTR__ENABLED=true
-      - NANOBOT_CHANNELS__NOSTR__PRIVATE_KEY=f85870b99d00e9435684dc483f63c0986c53ffffc40ce338127d66a6f992845f
-    volumes:
-      - ../workspace:/root/.nanobot/workspace
-      - ./config.json:/root/.nanobot/config.json
-      # REMOVED: - /var/run/docker.sock:/var/run/docker.sock
-    command: nanobot gateway
-    networks:
-      - hive-net
-
 networks:
   hive-net:
     driver: bridge

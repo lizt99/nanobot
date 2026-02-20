@@ -29,10 +29,36 @@ def create_agent(agent_in: AgentCreate, db: Session = Depends(get_db)):
     # Let's use name.lower() as the consistent ID for Docker
     docker_id = agent_in.name.lower()
 
+    # Create Agent Record
+    # Extract connectivity from AIEOS and merge into runtime_config
+    if agent_in.aieos_content and agent_in.aieos_content.connectivity:
+        conn = agent_in.aieos_content.connectivity
+        if not agent_in.runtime_config:
+            agent_in.runtime_config = {}
+        
+        # Telegram (Mandatory in schema)
+        agent_in.runtime_config['telegram_token'] = conn.telegram.token
+        agent_in.runtime_config['telegram_enabled'] = conn.telegram.enabled
+        
+        # Nostr
+        if conn.nostr:
+            if conn.nostr.public_key: 
+                agent_in.runtime_config['nostr_public_key'] = conn.nostr.public_key
+            if conn.nostr.private_key: 
+                agent_in.runtime_config['nostr_private_key'] = conn.nostr.private_key
+            
+        # LLM
+        if conn.llm:
+            if conn.llm.model: 
+                agent_in.runtime_config['model'] = conn.llm.model
+            if conn.llm.providers: 
+                agent_in.runtime_config['providers'] = conn.llm.providers
+
     new_agent = Agent(
         id=docker_id, # Using name as ID for consistency with previous system
         name=agent_in.name,
-        aieos_content=agent_in.aieos_content,
+        # Serialize Pydantic model to Dict for SQLAlchemy JSON field
+        aieos_content=agent_in.aieos_content.model_dump() if agent_in.aieos_content else None,
         runtime_config=agent_in.runtime_config,
         status="provisioning"
     )
@@ -45,7 +71,8 @@ def create_agent(agent_in: AgentCreate, db: Session = Depends(get_db)):
         result = orchestrator.start_agent(
             docker_id, 
             agent_in.name, 
-            agent_in.aieos_content or {}, 
+            # Pass dict to orchestrator
+            agent_in.aieos_content.model_dump() if agent_in.aieos_content else {}, 
             agent_in.runtime_config or {}
         )
         new_agent.container_id = result.get("container_id")
