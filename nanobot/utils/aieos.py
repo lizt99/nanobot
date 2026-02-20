@@ -52,7 +52,8 @@ class AIEOSLoader:
             return []
         
         skills = []
-        capabilities = data.get("capabilities", {})
+        # Ensure capabilities is a dict even if key is missing or None
+        capabilities = data.get("capabilities") or {}
         
         # 1. Direct skills list (AIEOS v1.1)
         # e.g. "skills": ["python", "web-search"]
