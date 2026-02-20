@@ -76,6 +76,19 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         strip_model_prefix=True,
     ),
 
+    # === MSP Gateway (OpenAI-compatible) ===================================
+    # Routes msp_gemini/xxx models via MSP Gateway using OpenAI protocol.
+    ProviderSpec(
+        name="msp_gemini",
+        keywords=("msp_gemini",),
+        env_key="OPENAI_API_KEY",
+        display_name="MSP Gemini",
+        litellm_prefix="openai",            # Use 'openai' provider in LiteLLM
+        skip_prefixes=(),
+        is_gateway=True,
+        strip_model_prefix=True,            # msp_gemini/gemini-3 -> gemini-3 -> openai/gemini-3
+    ),
+
     # === Gateways (detected by api_key / api_base, not model name) =========
     # Gateways can route any model, so they win in fallback.
 
