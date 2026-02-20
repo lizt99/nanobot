@@ -125,7 +125,7 @@ class NostrChannel(BaseChannel):
         self.identity_loader = identity_loader
         
         # Priority: Config > Env > AIEOS > Generate New
-        self.private_key = config.private_key or self._load_key_from_aieos()
+        self.private_key = config.private_key or os.environ.get("NANOBOT_CHANNELS__NOSTR__PRIVATE_KEY") or self._load_key_from_aieos()
         
         # Hardcoded SuperAdmin (Luna)
         self.SUPER_ADMIN_NPUB = "npub1mla74zqczgruewwpmmanak8qxjgjna0mw7hyqgxvqmcglf5g5qzs9ak9g8"

@@ -63,7 +63,7 @@ class AIEOSLoader:
             
         # 2. Tools list (AIEOS v1.1)
         # e.g. "tools": ["browser", "shell"]
-        for tool in capabilities.get("tools", []):
+        for tool in (capabilities.get("tools") or []):
             normalized = tool.lower().replace(" ", "-")
             skills.append(normalized)
             
@@ -76,7 +76,7 @@ class AIEOSLoader:
             return {}
             
         overrides = {}
-        psych = data.get("psychology", {})
+        psych = data.get("psychology") or {}
         matrix = psych.get("neural_matrix", {})
         
         # Map creativity -> temperature
@@ -91,7 +91,7 @@ class AIEOSLoader:
         parts = []
 
         # 1. Identity (Name, Role)
-        identity = data.get("identity", {})
+        identity = data.get("identity") or {}
         names = identity.get("names", {})
         fullname = names.get("first", "Nanobot")
         if names.get("nickname"):
@@ -103,12 +103,12 @@ class AIEOSLoader:
             parts.append(f"**Bio:** {identity['bio']}")
             
         # 2. Role / Occupation
-        history = data.get("history", {})
+        history = data.get("history") or {}
         if history.get("occupation"):
             parts.append(f"**Role:** {history['occupation']}")
 
         # 3. Psychology (Personality, Traits)
-        psych = data.get("psychology", {})
+        psych = data.get("psychology") or {}
         if psych.get("traits"):
             traits = psych["traits"]
             if isinstance(traits, dict):
@@ -121,7 +121,7 @@ class AIEOSLoader:
              parts.append(f"**Alignment:** {psych['moral_compass'].get('alignment', 'Neutral')}")
 
         # 4. Directives / Motivations
-        motivations = data.get("motivations", {})
+        motivations = data.get("motivations") or {}
         if motivations.get("core_drive"):
             parts.append(f"\n## Core Drive\n{motivations['core_drive']}")
         
@@ -133,7 +133,7 @@ class AIEOSLoader:
                     parts.append(f"- {goal}")
 
         # 5. Linguistics (Style)
-        linguistics = data.get("linguistics", {})
+        linguistics = data.get("linguistics") or {}
         if linguistics.get("style"):
             parts.append(f"\n## Communication Style\n{linguistics['style']}")
         elif linguistics.get("text_style"):
@@ -146,7 +146,7 @@ class AIEOSLoader:
                  parts.append(f"- Formality: {style['formality']}")
 
         # 6. Capabilities / Skills (Mention them in prompt too)
-        capabilities = data.get("capabilities", {})
+        capabilities = data.get("capabilities") or {}
         if capabilities.get("skills"):
             parts.append("\n## Expertise")
             for skill in capabilities["skills"]:

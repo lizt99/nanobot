@@ -31,28 +31,36 @@ def create_agent(agent_in: AgentCreate, db: Session = Depends(get_db)):
 
     # Create Agent Record
     # Extract connectivity from AIEOS and merge into runtime_config
-    if agent_in.aieos_content and agent_in.aieos_content.connectivity:
-        conn = agent_in.aieos_content.connectivity
-        if not agent_in.runtime_config:
-            agent_in.runtime_config = {}
-        
-        # Telegram (Mandatory in schema)
-        agent_in.runtime_config['telegram_token'] = conn.telegram.token
-        agent_in.runtime_config['telegram_enabled'] = conn.telegram.enabled
-        
-        # Nostr
-        if conn.nostr:
-            if conn.nostr.public_key: 
-                agent_in.runtime_config['nostr_public_key'] = conn.nostr.public_key
-            if conn.nostr.private_key: 
-                agent_in.runtime_config['nostr_private_key'] = conn.nostr.private_key
+    print(f"DEBUG: Received agent_in: {agent_in}")
+    if agent_in.aieos_content:
+        print(f"DEBUG: aieos_content present. Connectivity: {agent_in.aieos_content.connectivity}")
+        if agent_in.aieos_content.connectivity:
+            conn = agent_in.aieos_content.connectivity
+            if agent_in.runtime_config is None:
+                agent_in.runtime_config = {}
             
-        # LLM
-        if conn.llm:
-            if conn.llm.model: 
-                agent_in.runtime_config['model'] = conn.llm.model
-            if conn.llm.providers: 
-                agent_in.runtime_config['providers'] = conn.llm.providers
+            # Telegram (Mandatory in schema)
+            print(f"DEBUG: Injecting Telegram: {conn.telegram}")
+            agent_in.runtime_config['telegram_token'] = conn.telegram.token
+            agent_in.runtime_config['telegram_enabled'] = conn.telegram.enabled
+            
+            # Nostr
+            if conn.nostr:
+                print(f"DEBUG: Injecting Nostr: {conn.nostr}")
+                if conn.nostr.public_key: 
+                    agent_in.runtime_config['nostr_public_key'] = conn.nostr.public_key
+                if conn.nostr.private_key: 
+                    agent_in.runtime_config['nostr_private_key'] = conn.nostr.private_key
+                
+            # LLM
+            if conn.llm:
+                print(f"DEBUG: Injecting LLM: {conn.llm}")
+                if conn.llm.model: 
+                    agent_in.runtime_config['model'] = conn.llm.model
+                if conn.llm.providers: 
+                    agent_in.runtime_config['providers'] = conn.llm.providers
+            
+            print(f"DEBUG: Final runtime_config: {agent_in.runtime_config}")
 
     new_agent = Agent(
         id=docker_id, # Using name as ID for consistency with previous system

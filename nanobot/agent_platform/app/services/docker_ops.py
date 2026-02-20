@@ -36,8 +36,13 @@ class DockerOrchestrator(Orchestrator):
         metadata = {}
         
         # Identity Injection (Nostr Keypair)
-        # If user didn't provide a key, generate one so we know who they are.
-        if generate_keypair and "nostr_private_key" not in config:
+        if "nostr_private_key" in config:
+            # User provided a key
+            env_vars["NANOBOT_CHANNELS__NOSTR__PRIVATE_KEY"] = str(config["nostr_private_key"])
+            if "nostr_public_key" in config:
+                env_vars["NANOBOT_CHANNELS__NOSTR__PUBLIC_KEY"] = str(config["nostr_public_key"])
+        elif generate_keypair:
+            # Generate one if missing
             priv, pub = generate_keypair()
             env_vars["NANOBOT_CHANNELS__NOSTR__PRIVATE_KEY"] = priv
             env_vars["NANOBOT_CHANNELS__NOSTR__PUBLIC_KEY"] = pub
