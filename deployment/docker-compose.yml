@@ -1,7 +1,9 @@
 version: "3.8"
 
 services:
-  # Edge Layer (SSL/TLS Termination)
+  # ---------------------------
+  # 1. Edge Layer (Ingress)
+  # ---------------------------
   caddy:
     image: caddy:2
     restart: always
@@ -15,7 +17,11 @@ services:
     networks:
       - hive-net
 
-  # Communication Bus (Internal Only)
+  # ---------------------------
+  # 2. Infrastructure Layer
+  # ---------------------------
+  
+  # Message Bus
   nostr-relay:
     image: scsibug/nostr-rs-relay:latest
     restart: always
@@ -26,27 +32,51 @@ services:
     networks:
       - hive-net
 
-  # Commander (Sol)
+  # [NEW] Agent API Platform (The Infrastructure Controller)
+  agent-api:
+    build: 
+      context: ..
+      dockerfile: nanobot/agent_platform/Dockerfile
+    restart: always
+    environment:
+      - API_KEY=${AGENT_API_KEY:-sk-hive-prod-37b3f580730685be6e7c667e4c027c6e}
+      - DOCKER_NETWORK=deployment_hive-net
+      - AGENT_IMAGE=deployment-sol
+      - NOSTR_RELAY_URL=ws://nostr-relay:8080
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./agents.db:/app/agents.db
+    networks:
+      - hive-net
+
+  # ---------------------------
+  # 3. Agent Layer
+  # ---------------------------
+  
+  # Sol (The Manager Agent)
+  # SECURE: No Docker Socket access
   sol:
     build: 
       context: ..
       dockerfile: Dockerfile
     restart: always
-    # Wait for relay to be ready
     depends_on:
       - nostr-relay
+      - agent-api
     env_file:
       - ../.env
     environment:
-      # Internal network connection
+      # Connection to API
+      - NANOBOT_AGENT_API_URL=http://agent-api:8000
+      - NANOBOT_AGENT_API_KEY=${AGENT_API_KEY:-sk-hive-prod-37b3f580730685be6e7c667e4c027c6e}
+      # Connection to Bus
       - NANOBOT_CHANNELS__NOSTR__RELAY_URL=ws://nostr-relay:8080
       - NANOBOT_CHANNELS__NOSTR__ENABLED=true
-      # Ensure Sol uses the correct private key
       - NANOBOT_CHANNELS__NOSTR__PRIVATE_KEY=f85870b99d00e9435684dc483f63c0986c53ffffc40ce338127d66a6f992845f
     volumes:
       - ../workspace:/root/.nanobot/workspace
       - ./config.json:/root/.nanobot/config.json
-      - /var/run/docker.sock:/var/run/docker.sock
+      # REMOVED: - /var/run/docker.sock:/var/run/docker.sock
     command: nanobot gateway
     networks:
       - hive-net

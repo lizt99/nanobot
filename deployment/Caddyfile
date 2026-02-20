@@ -3,5 +3,8 @@ sol.leadsagent.app {
 }
 
 http://34.173.238.134 {
+    handle_path /api/* {
+        reverse_proxy agent-api:8000
+    }
     reverse_proxy nostr-relay:8080
 }

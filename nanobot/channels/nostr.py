@@ -196,6 +196,9 @@ class NostrChannel(BaseChannel):
                     
                     # 5. Listen Loop
                     await self._listen_loop(ws)
+            except Exception as e:
+                logger.error(f"Nostr connection error: {e}")
+                await asyncio.sleep(5)
 
     async def _listen_loop(self, ws):
         async for message in ws:
