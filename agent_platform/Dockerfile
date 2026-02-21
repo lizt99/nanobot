@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Agent API dependencies
-COPY nanobot/agent_platform/requirements.txt .
+COPY agent_platform/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy Nanobot Library Source (for utils like bip340)
@@ -18,7 +18,7 @@ COPY nanobot/ /app/nanobot/
 ENV PYTHONPATH="${PYTHONPATH}:/app"
 
 # Copy Agent API Application Code
-COPY nanobot/agent_platform/app /app/app
+COPY agent_platform/app /app/app
 
 # Expose port
 EXPOSE 8000
